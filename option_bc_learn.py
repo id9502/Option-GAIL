@@ -43,6 +43,12 @@ def operate_sac(sa_array, dim_c, device):
     return sac_array
 
 
+def calculate_log_pi_tr(policy, s, a, c):
+    log_pis = policy.log_prob_action(s.view(-1, policy.dim_s), c[1:].view(-1, 1), a.view(-1, policy.dim_a)).view(-1, policy.dim_c)
+    log_trs = policy.log_trans(s.view(-1, policy.dim_s), c[:-1].view(-1, 1)).view(-1, policy.dim_c, policy.dim_c)
+    return log_pis, log_trs
+
+
 def calculate_log_ab(log_pis, log_trs, dim_c, device):
     log_alpha = [torch.empty(dim_c, dtype=torch.float32, device=device).fill_(-math.log(dim_c))]
     for log_tr, log_pi in zip(log_trs, log_pis):
@@ -60,7 +66,6 @@ def calculate_log_ab(log_pis, log_trs, dim_c, device):
     log_alpha = torch.stack(log_alpha)
     log_beta = torch.stack(log_beta)
     return log_alpha, log_beta
-
 
 
 def policy_loss_option_MLE(optimizer, opolicy: OptionPolicy, sa_array, factor_ent=1.):
@@ -88,7 +93,6 @@ def policy_loss_option_MLE(optimizer, opolicy: OptionPolicy, sa_array, factor_en
             optimizer.step()
             l_avg += loss.item() / 10. / len(sa_array)
     return l_avg
-
 
 
 def policy_loss_option_MAP(optimizer, opolicy: OptionPolicy, sa_array):
@@ -264,7 +268,9 @@ if __name__ == "__main__":
     arg.add_arg("use_option", True, "Use Option when training or not")
     arg.add_arg("n_pretrain_epoch", 5000, "Pretrain epoches")
     arg.add_arg("pretrain_log_interval", 20, "Pretrain logging logging interval")
-    arg.add_arg("loss_type", "L2", "Pretraining method [MLE, MAP, subpart MAP]")
+    # We can prove that using MLE is equivalent to MAP mathematically, but the former has higher computational efficiency
+    # so here we recommend using MLE instead of MAP in your future work
+    arg.add_arg("loss_type", "L2", "Pretraining method [L2, MLE, MAP, subpart MAP]")
     arg.add_arg("dim_c", 4, "Number of Options")
     arg.add_arg("env_type", "mujoco", "Environment type, can be [mujoco, rlbench, mini]")
     arg.add_arg("env_name", "AntPush-v0", "Environment name")
